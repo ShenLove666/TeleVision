@@ -7,32 +7,32 @@ import sys
 import platform
 
 print("=" * 60)
-print("  ZED Mini / ZED 相机诊断工具")
+print("  ZED Mini / ZED Camera Diagnostic")
 print("  " + "=" * 60)
-print(f"  系统: {platform.system()} {platform.release()}")
+print(f"  System: {platform.system()} {platform.release()}")
 print(f"  Python: {sys.version.split()[0]}")
 print()
 
 # Step 1: Check pyzed
-print("[1/5] 检测 pyzed Python 模块...", end=" ")
+print("[1/5] Check pyzed Python module...", end=" ")
 try:
     import pyzed.sl as sl
-    print("✅ 已安装")
-    print(f"       ZED SDK 版本: {sl.Camera.get_sdk_version()}")
+    print("OK")
+    print(f"       ZED SDK version: {sl.Camera.get_sdk_version()}")
 except ImportError:
-    print("❌ 未安装")
+    print("NOT INSTALLED")
     print()
-    print("   请安装 ZED SDK:")
-    print("   1. 下载: https://www.stereolabs.com/developers/release/")
-    print("   2. 安装后运行:")
+    print("   Please install ZED SDK:")
+    print("   1. Download: https://www.stereolabs.com/developers/release/")
+    print("   2. After installation, run:")
     print('      cd "C:\\Program Files (x86)\\ZED SDK\\"')
     print("      python get_python_api.py")
     sys.exit(1)
 
 # Step 2: Detect camera
-print("[2/5] 检测相机硬件...", end=" ")
+print("[2/5] Detect camera hardware...", end=" ")
 try:
-    # 快速探测
+    # Quick detection
     test_cam = sl.Camera()
     init = sl.InitParameters()
     init.depth_mode = sl.DEPTH_MODE.NONE
@@ -52,27 +52,31 @@ try:
             sl.MODEL.ZED_XM: "ZED X Mini",
         }
         model_name = model_map.get(info.camera_model, f"Unknown ({info.camera_model})")
-        print(f"✅ 已连接")
-        print(f"       型号: {model_name}")
-        print(f"       序列号: {info.serial_number}")
-        print(f"       固件版本: {info.firmware_version}")
-        print(f"       分辨率: {info.camera_configuration.resolution.width}x{info.camera_configuration.resolution.height}")
+        print("CONNECTED")
+        print(f"       Model: {model_name}")
+        print(f"       Serial: {info.serial_number}")
+        # ZED SDK 5.0+ firmware info is in sensors_configuration
+        try:
+            print(f"       Firmware: {info.sensors_configuration.firmware_version}")
+        except:
+            print(f"       Firmware: (ZED SDK {sl.Camera.get_sdk_version()})")
+        print(f"       Resolution: {info.camera_configuration.resolution.width}x{info.camera_configuration.resolution.height}")
         test_cam.close()
     else:
-        print("❌ 未检测到相机")
-        print(f"       错误: {repr(status)}")
+        print("NOT DETECTED")
+        print(f"       Error: {repr(status)}")
         print()
-        print("   请检查:")
-        print("   - USB 3.0 线缆是否连接牢固")
-        print("   - 是否插在 USB 3.0 (蓝色) 接口上")
-        print("   - 相机侧面 LED 是否亮起")
+        print("   Please check:")
+        print("   - USB 3.0 cable is firmly connected")
+        print("   - Plugged into a USB 3.0 (blue) port")
+        print("   - Camera side LED is on")
         sys.exit(1)
 except Exception as e:
-    print(f"❌ 错误: {e}")
+    print(f"ERROR: {e}")
     sys.exit(1)
 
 # Step 3: Test streaming
-print("[3/5] 测试视频流 (60帧)...", end=" ")
+print("[3/5] Test video stream (60 frames)...", end=" ")
 try:
     init.camera_fps = 60
     test_cam = sl.Camera()
@@ -99,23 +103,23 @@ try:
 
     success_rate = success_count / total_frames * 100
     if success_rate > 80:
-        print("✅")
-        print(f"       成功: {success_count}/{total_frames} ({success_rate:.0f}%)")
+        print("OK")
+        print(f"       Success: {success_count}/{total_frames} ({success_rate:.0f}%)")
     else:
-        print("⚠️")
-        print(f"       成功: {success_count}/{total_frames} ({success_rate:.0f}%)")
-        print(f"       失败: {fail_count}/{total_frames}")
-        print("       可能存在 USB 带宽不足")
+        print("WARNING")
+        print(f"       Success: {success_count}/{total_frames} ({success_rate:.0f}%)")
+        print(f"       Failed: {fail_count}/{total_frames}")
+        print("       Possible USB bandwidth issue")
 except Exception as e:
-    print(f"❌ 错误: {e}")
+    print(f"ERROR: {e}")
 
 # Step 4: Check USB controller
-print("[4/5] USB 控制器检查...", end=" ")
+print("[4/5] USB controller check...", end=" ")
 try:
     import subprocess
     result = subprocess.run(
-        ["powershell", "-Command",
-         "Get-PnpDevice -PresentOnly | Where-Object { $_.Class -eq 'USB' } | Select-Object FriendlyName | Format-List"],
+        ["powershell", "-NoProfile", "-Command",
+         "Get-PnpDevice -PresentOnly | Where-Object -Property Class -eq 'USB' | Select-Object FriendlyName | Format-List"],
         capture_output=True, text=True, timeout=5
     )
     lines = [l.strip() for l in result.stdout.split('\n') if 'FriendlyName' in l]
@@ -123,20 +127,20 @@ try:
 
     xhci_controllers = [c for c in usb_controllers if 'xHCI' in c or 'USB 3' in c or 'USB 3.1' in c]
     if xhci_controllers:
-        print("✅")
+        print("OK")
         for c in xhci_controllers:
             print(f"       {c}")
     else:
-        print("⚠️  (未检测到 USB 3.0 控制器，可能影响性能)")
+        print("(No USB 3.0 controller detected)")
 except:
-    print("⚠️  (跳过)")
+    print("(skipped)")
 
 # Step 5: Summary
-print(f"[5/5] 总结")
+print("[5/5] Summary")
 print()
-print(f"    ZED Mini 相机状态: ✅ 正常工作")
+print(f"    ZED Mini camera status: OK - working")
 print(f"    SDK: {sl.Camera.get_sdk_version()}")
-print(f"    下一步: 运行完整测试 -> python scripts/test_zed_mini.py")
+print(f"    Next: run full test -> python scripts/test_zed_mini.py --mode stereo")
 
 print()
 print("=" * 60)
