@@ -11,7 +11,7 @@ import time
 import cv2
 import serial
 from constants_vuer import grd_yup2grd_zup
-from TeleVision import OpenTeleVision
+from TeleVisionHD import OpenTeleVision
 import pyzed.sl as sl
 from multiprocessing import shared_memory, Queue, Event
 from pytransform3d import rotations
