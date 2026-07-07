@@ -44,16 +44,29 @@ class ZedVideoTrack(MediaStreamTrack):
         """
         This method is called when a new frame is needed.
         """
-        # now = time.time()
-        # wait_time = self._last_frame_time + self.frame_interval - now
-        # if wait_time > 0:
-        #     await asyncio.sleep(wait_time)
-        # self._last_frame_time = time.time()
-        # start = time.time()
         if not self.streaming_started:
             self.toggle_streaming.set()
             self.streaming_started = True
-        frame = self.img_queue.get()
+
+        # 丢弃旧帧, 只取最新帧 (非阻塞, 避免卡住事件循环)
+        frame = None
+        while not self.img_queue.empty():
+            try:
+                frame = self.img_queue.get_nowait()
+            except Exception:
+                break
+
+        if frame is None:
+            # 没有新帧, 短暂等待后重试
+            await asyncio.sleep(0.01)
+            try:
+                frame = self.img_queue.get_nowait()
+            except Exception:
+                frame = getattr(self, '_last_frame', None)
+                if frame is None:
+                    frame = np.zeros((720, 2560, 3), dtype=np.uint8)
+
+        self._last_frame = frame
         # self.sem.release()
         # print("Time to get frame: ", time.time() - start, self.img_queue.qsize())
         # frame = self.img_array.copy()  # Assuming this is an async function to fetch a frame
@@ -112,6 +125,17 @@ class RTC():
         video_sender = pc.addTrack(zed_track)
         # if Args.video_codec:
         force_codec(pc, video_sender, "video/H264")
+
+        # 强制使用 Baseline profile 编码更快
+        try:
+            transceiver = next(t for t in pc.getTransceivers() if t.sender == video_sender)
+            caps = RTCRtpSender.getCapabilities("video")
+            h264_codecs = [c for c in caps.codecs if c.mimeType == "video/H264"]
+            baseline = [c for c in h264_codecs if c.parameters.get("profile-level-id") == "42001f"]
+            if baseline:
+                transceiver.setCodecPreferences(baseline)
+        except Exception:
+            pass
         # elif Args.play_without_decoding:
             # raise Exception("You must specify the video codec using --video-codec")
 

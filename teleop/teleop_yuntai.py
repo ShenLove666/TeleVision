@@ -208,7 +208,7 @@ def main():
     img_shape = (resolution_cropped[0], 2 * resolution_cropped[1], 3)
     shm = shared_memory.SharedMemory(create=True, size=np.prod(img_shape) * np.uint8().itemsize)
     img_array = np.ndarray((img_shape[0], img_shape[1], 3), dtype=np.uint8, buffer=shm.buf)
-    image_queue = Queue()
+    image_queue = Queue(maxsize=2)
     toggle_streaming = Event()
 
     # 如果没证书就允许不加密 (ngrok=True)
@@ -224,7 +224,9 @@ def main():
         shm.name,
         image_queue,
         toggle_streaming,
-        stream_mode="image",
+        stream_mode="webrtc",
+        cert_file=cert_path,
+        key_file=os.path.join(os.path.dirname(__file__), "key.pem"),
         ngrok=use_ngrok,
     )
 
@@ -314,7 +316,10 @@ def main():
                 rgb = cv2.cvtColor(bgr, cv2.COLOR_BGRA2RGB)
 
                 np.copyto(img_array, rgb)
-                image_queue.put(rgb)
+                try:
+                    image_queue.put_nowait(rgb)
+                except Exception:
+                    pass
 
             # ----- C. 速率统计 & 帧率控制 -----
             frame_count += 1
@@ -326,7 +331,7 @@ def main():
                 frame_count = 0
                 fps_timer = time.time()
 
-            # 控制循环速率 ~60Hz (但不精确 sleep, 因为 serial write 可能阻塞)
+            # 控制循环速率 ~60Hz
             elapsed = time.time() - loop_start
             sleep_time = max(0, 1.0 / 60 - elapsed)
             if sleep_time > 0:

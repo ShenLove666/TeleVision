@@ -115,7 +115,7 @@ class OpenTeleVision:
         session.set @ DefaultScene(frameloop="always")
         session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=False, showRight=False)
         session.upsert @ WebRTCStereoVideoPlane(
-                src="https://192.168.8.102:8080/offer",
+                src="https://192.168.3.8:8080/offer",
                 # iceServer={},
                 key="zed",
                 aspect=1.33334,
