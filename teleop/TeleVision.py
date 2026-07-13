@@ -1,7 +1,7 @@
 import time
 from vuer import Vuer
 from vuer.events import ClientEvent
-from vuer.schemas import ImageBackground, group, Hands, WebRTCStereoVideoPlane, DefaultScene
+from vuer.schemas import ImageBackground, group, Hands, WebRTCStereoVideoPlane, DefaultScene, Scene, AmbientLight, DirectionalLight, GrabRender
 from multiprocessing import Array, Process, shared_memory, Queue, Manager, Event, Semaphore
 import numpy as np
 import asyncio
@@ -14,9 +14,10 @@ class OpenTeleVision:
         self.img_height, self.img_width = img_shape[:2]
 
         if ngrok:
-            self.app = Vuer(host='0.0.0.0', queries=dict(grid=False), queue_len=3)
+            self.app = Vuer(host='0.0.0.0', queries=dict(grid=False, hands=False), queue_len=3)
         else:
-            self.app = Vuer(host='0.0.0.0', cert=cert_file, key=key_file, queries=dict(grid=False), queue_len=3)
+            self.app = Vuer(host='0.0.0.0', cert=cert_file, key=key_file,
+                            queries=dict(grid=False, hands=False), queue_len=3)
 
         self.app.add_handler("HAND_MOVE")(self.on_hand_move)
         self.app.add_handler("CAMERA_MOVE")(self.on_cam_move)
@@ -111,17 +112,30 @@ class OpenTeleVision:
         except: 
             pass
     
-    async def main_webrtc(self, session, fps=60):
-        session.set @ DefaultScene(frameloop="always")
-        session.upsert @ Hands(fps=fps, stream=True, key="hands", showLeft=False, showRight=False)
+    async def main_webrtc(self, session):
+        print("[VR] main_webrtc 开始, 等待 WebSocket 连接...")
+        await asyncio.sleep(2)  # 等待客户端连接
+        print("[VR] 发送 Scene SET 消息...")
+        scene = Scene(
+            rawChildren=[
+                AmbientLight(intensity=1.0),
+                DirectionalLight(intensity=1),
+            ],
+            bgChildren=[GrabRender()],
+            frameloop="always",
+        )
+        print(f"[VR] Scene tag: {scene.tag}")
+        session.set @ scene
+        print("[VR] Scene SET 已发送")
         session.upsert @ WebRTCStereoVideoPlane(
-                src="https://192.168.3.8:8080/offer",
+                src="https://192.168.31.196:8080/offer",
                 # iceServer={},
                 key="zed",
-                aspect=1.33334,
+                aspect=1.778,
                 height = 8,
-                position=[0, -2, -0.2],
+                position=[0, 0, -0.3],
             )
+        print("[VR] WebRTCStereoVideoPlane UPSERT 已发送")
         while True:
             await asyncio.sleep(1)
     
